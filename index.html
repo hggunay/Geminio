@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Geminio</title>
+<meta name="description" content="Görseli kâğıda kopyalama büyüsü — kamera üstünde saydam görselle çizim yardımcısı">
+<meta name="theme-color" content="#1e1633">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Geminio">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+/* ══════════════════════════════════════════════════════════════════════
+   GEMINIO — Görseli kâğıda kopyalama büyüsü (2026-09-18)
+   Harry Potter'daki kopyalama büyüsünden adını alıyor.
+
+   NE YAPAR: telefonun kamerası kâğıdı gösterir, seçilen görsel üstünde
+   yarı saydam durur; kâğıttaki kalemle görseldeki çizgiler takip edilir.
+   Gerçek AR YOK (bilerek): telefon sabit duruyor, görsel ekrana yapışık.
+   ⚠️ Kamera yalnızca HTTPS'te çalışır — deneme yayındaki adresten yapılır,
+      dosyaya çift tıklayarak değil.
+   ══════════════════════════════════════════════════════════════════════ */
+:root{
+  --gece:#1e1633; --gece2:#2b2148; --gece3:#3a2d60;
+  --altin:#e8c46a; --altin-koyu:#b8923a;
+  --yazi:#f3ecdc; --soluk:rgba(243,236,220,.62);
+  --kagit:#f4eee0; --uyari:#e07a5f; --tamam:#7fb685;
+  --panel:rgba(30,22,51,.94);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--gece);color:var(--yazi);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;
+  overscroll-behavior:none;user-select:none;-webkit-user-select:none}
+button{font:inherit;color:inherit;cursor:pointer}
+.gizli{display:none!important}
+
+/* ── BAŞLANGIÇ ─────────────────────────────────────────────────────── */
+#baslangic{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:1.1rem;padding:24px 16px calc(24px + env(safe-area-inset-bottom));
+  background:radial-gradient(120% 80% at 50% 0%,#3a2d60 0%,var(--gece) 60%);overflow-y:auto}
+.logo{font-size:3.2rem;line-height:1}
+h1{margin:0;font-family:Georgia,"Times New Roman",serif;font-size:2.2rem;letter-spacing:.04em;color:var(--altin)}
+.alt-baslik{margin:-.6rem 0 .4rem;color:var(--soluk);font-style:italic;text-align:center}
+.buyuk{width:min(340px,100%);padding:1rem 1.1rem;border-radius:16px;border:1px solid rgba(232,196,106,.35);
+  background:var(--gece2);font-size:1.08rem;display:flex;align-items:center;gap:.8rem;text-align:left}
+.buyuk b{display:block;font-size:1.08rem}
+.buyuk small{display:block;color:var(--soluk);font-size:.82rem;margin-top:.15rem}
+.buyuk .ik{font-size:1.7rem}
+.buyuk.ana{background:linear-gradient(135deg,var(--altin),var(--altin-koyu));color:#221a0c;border:none}
+.buyuk.ana small{color:rgba(34,26,12,.7)}
+#onizleme{width:min(340px,100%);max-height:28vh;object-fit:contain;border-radius:12px;
+  border:1px solid rgba(232,196,106,.3);background:#00000033}
+#devamKutu{width:min(340px,100%)}
+#devamKutu .buyuk img{width:52px;height:52px;object-fit:cover;border-radius:8px;flex:0 0 auto}
+.not{color:var(--soluk);font-size:.8rem;text-align:center;max-width:340px}
+
+/* ── ÇALIŞMA EKRANI ────────────────────────────────────────────────── */
+#calisma{position:fixed;inset:0;background:#000}
+#calisma.kare{background:var(--kagit)}
+#video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+/* Hareket alanı: tüm ekran. touch-action:none — tarayıcı kendi yakınlaştırmasını yapmasın. */
+#sahne{position:absolute;inset:0;touch-action:none;overflow:hidden}
+#katman{position:absolute;left:0;top:0;transform-origin:0 0;pointer-events:none;overflow:visible}
+
+.ust-sol{position:absolute;top:calc(10px + env(safe-area-inset-top));left:10px;z-index:5}
+.yuvarlak{width:46px;height:46px;border-radius:50%;border:1px solid rgba(232,196,106,.45);
+  background:var(--panel);font-size:1.25rem;display:grid;place-items:center}
+
+#arac{position:absolute;left:0;right:0;bottom:0;z-index:5;padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+  background:linear-gradient(to top,rgba(20,14,36,.96) 60%,rgba(20,14,36,0));display:flex;flex-direction:column;gap:10px}
+.satir{display:flex;align-items:center;gap:10px}
+.satir label{font-size:1.1rem}
+input[type=range]{flex:1;accent-color:var(--altin);height:28px}
+.dugmeler{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.arac-d{padding:.6rem .2rem;border-radius:12px;border:1px solid rgba(232,196,106,.3);background:var(--gece2);
+  display:flex;flex-direction:column;align-items:center;gap:.15rem;font-size:1.2rem}
+.arac-d span{font-size:.7rem;color:var(--soluk)}
+.arac-d.acik{background:var(--gece3);border-color:var(--altin)}
+.arac-d.acik span{color:var(--altin)}
+#parcaSerit{display:flex;align-items:center;justify-content:center;gap:10px}
+#parcaSerit button{min-width:52px;padding:.45rem .7rem;border-radius:10px;border:1px solid rgba(232,196,106,.35);background:var(--gece2);font-size:1rem}
+#parcaEtiket{font-size:.95rem;min-width:110px;text-align:center}
+
+/* Kilit: araç çubuğu gizlenir, tek bir düğme kalır. Kâğıda çizen el ekrana
+   değebilir — o yüzden kilit AÇMAK için basılı tutmak gerekiyor. */
+#kilitAc{position:absolute;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:6;
+  width:64px;height:64px;border-radius:50%;border:2px solid var(--altin);background:var(--panel);
+  font-size:1.5rem;display:grid;place-items:center;touch-action:none}
+#kilitAc::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:3px solid var(--altin);
+  clip-path:inset(0 100% 0 0);opacity:0}
+#kilitAc.basili::after{opacity:1;animation:dolum .8s linear forwards}
+@keyframes dolum{to{clip-path:inset(0 0 0 0)}}
+#kilitIpucu{position:absolute;right:88px;bottom:calc(30px + env(safe-area-inset-bottom));z-index:6;
+  font-size:.8rem;color:var(--yazi);background:var(--panel);padding:.35rem .6rem;border-radius:8px;
+  transition:opacity .6s}
+
+/* ── ALT PANELLER (ızgara / parçalar) ─────────────────────────────── */
+.perde{position:absolute;inset:0;z-index:8;background:rgba(0,0,0,.35)}
+.panel{position:absolute;left:0;right:0;bottom:0;z-index:9;max-height:82vh;overflow-y:auto;
+  background:var(--panel);border-top:1px solid rgba(232,196,106,.35);border-radius:18px 18px 0 0;
+  padding:16px 16px calc(18px + env(safe-area-inset-bottom))}
+.panel h2{margin:0 0 .8rem;font-size:1.1rem;color:var(--altin);display:flex;justify-content:space-between;align-items:center}
+.panel h2 button{background:none;border:none;font-size:1.3rem;color:var(--soluk)}
+.acma{display:flex;justify-content:space-between;align-items:center;padding:.6rem 0;border-bottom:1px solid rgba(232,196,106,.15)}
+.anahtar{position:relative;width:54px;height:30px;border-radius:15px;border:none;background:#55486f;transition:background .2s}
+.anahtar::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:left .2s}
+.anahtar.acik{background:var(--altin)}
+.anahtar.acik::after{left:27px}
+.adim{display:flex;align-items:center;gap:10px}
+.adim button{width:40px;height:40px;border-radius:10px;border:1px solid rgba(232,196,106,.35);background:var(--gece2);font-size:1.2rem}
+.adim output{min-width:2ch;text-align:center;font-size:1.1rem;font-variant-numeric:tabular-nums}
+.aciklama{color:var(--soluk);font-size:.82rem;margin:.6rem 0 0;line-height:1.45}
+#harita{position:relative;margin:.9rem auto .6rem;max-width:100%}
+#harita img{display:block;max-width:100%;max-height:34vh;border-radius:8px;opacity:.9}
+#haritaIzgara{position:absolute;inset:0;display:grid}
+#haritaIzgara button{border:1px solid rgba(232,196,106,.75);background:rgba(30,22,51,.25);color:#fff;
+  font-weight:700;font-size:1rem;text-shadow:0 1px 2px #000}
+#haritaIzgara button.secili{background:rgba(232,196,106,.55);color:#221a0c;text-shadow:none}
+#haritaIzgara button.bitti{background:rgba(127,182,133,.55)}
+.genis{width:100%;padding:.8rem;border-radius:12px;border:1px solid rgba(232,196,106,.35);background:var(--gece2);font-size:1rem;margin-top:.5rem}
+.genis.tamam{background:rgba(127,182,133,.3);border-color:var(--tamam)}
+
+/* ── ŞERİT (uyarı / bilgi) — tarayıcı kutusu (alert) KULLANILMIYOR ───── */
+#serit{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translateX(-50%);
+  z-index:20;max-width:min(92vw,420px);padding:.75rem 1rem;border-radius:12px;background:var(--panel);
+  border:1px solid var(--altin);font-size:.92rem;line-height:1.4;box-shadow:0 6px 24px #0008}
+#serit.uyari{border-color:var(--uyari)}
+
+/* İlk kez kamera açılınca bir kerelik ipucu */
+#ipucu{position:absolute;inset:0;z-index:10;display:grid;place-items:center;background:rgba(0,0,0,.55);padding:16px}
+#ipucu .kart{max-width:360px;background:var(--panel);border:1px solid var(--altin);border-radius:16px;padding:18px}
+#ipucu ol{margin:.4rem 0 1rem;padding-left:1.2rem;line-height:1.6}
+</style>
+</head>
+<body>
+
+<!-- ═══ BAŞLANGIÇ ═══ -->
+<section id="baslangic">
+  <div class="logo">🪄</div>
+  <h1>Geminio</h1>
+  <p class="alt-baslik">Görseli kâğıda kopyalama büyüsü</p>
+
+  <div id="devamKutu" class="gizli"></div>
+
+  <button class="buyuk" id="gorselSecD"><span class="ik">🖼️</span><span><b>Görsel seç</b><small>Galeriden ya da dosyalardan</small></span></button>
+  <input type="file" id="gorselGirdi" accept="image/*" class="gizli">
+
+  <img id="onizleme" class="gizli" alt="Seçilen görsel">
+
+  <div id="modlar" class="gizli" style="display:flex;flex-direction:column;gap:.8rem;align-items:center;width:100%">
+    <button class="buyuk ana" id="kameraD"><span class="ik">📷</span><span><b>Kamerayla çiz</b><small>Görsel kâğıdın üstünde süzülür, sen takip edersin</small></span></button>
+    <button class="buyuk" id="kareD"><span class="ik">▦</span><span><b>Kareleme</b><small>Kamerasız — görseli karelere böl, kare kare kopyala</small></span></button>
+  </div>
+
+  <p class="not" id="httpsNotu"></p>
+</section>
+
+<!-- ═══ ÇALIŞMA ═══ -->
+<section id="calisma" class="gizli">
+  <video id="video" playsinline muted autoplay></video>
+  <div id="sahne"><svg id="katman" xmlns="http://www.w3.org/2000/svg"></svg></div>
+
+  <div class="ust-sol"><button class="yuvarlak" id="geriD" aria-label="Başa dön">✕</button></div>
+
+  <div id="arac">
+    <div id="parcaSerit" class="gizli">
+      <button id="oncekiD" aria-label="Önceki parça">◀</button>
+      <span id="parcaEtiket"></span>
+      <button id="sonrakiD" aria-label="Sonraki parça">▶</button>
+    </div>
+    <div class="satir"><label for="opak" title="Saydamlık">👁</label><input type="range" id="opak" min="0.05" max="1" step="0.01"></div>
+    <div class="dugmeler">
+      <button class="arac-d" id="kilitD">🔒<span>Kilitle</span></button>
+      <button class="arac-d" id="izgaraD">▦<span>Izgara</span></button>
+      <button class="arac-d" id="parcaD">✂️<span>Parçalar</span></button>
+      <button class="arac-d" id="ortalaD">🎯<span>Ortala</span></button>
+    </div>
+  </div>
+
+  <button id="kilitAc" class="gizli" aria-label="Kilidi aç (basılı tut)">🔓</button>
+  <div id="kilitIpucu" class="gizli">Açmak için basılı tut</div>
+
+  <!-- Izgara paneli -->
+  <div class="perde gizli" data-panel="izgaraP"></div>
+  <div class="panel gizli" id="izgaraP">
+    <h2>▦ Izgara <button data-kapat="izgaraP" aria-label="Kapat">✕</button></h2>
+    <div class="acma"><span>Izgarayı göster</span><button class="anahtar" id="izgaraAnahtar" aria-label="Izgara aç/kapat"></button></div>
+    <div class="acma"><span>Yatayda kare sayısı</span>
+      <div class="adim"><button data-izgara="-1">−</button><output id="izgaraSay"></output><button data-izgara="1">+</button></div></div>
+    <p class="aciklama">Kareler görselle birlikte büyür, döner, kayar. Oranı tutturmaya ve parçaları hizalamaya yarar. İstersen kâğıda da aynı ızgarayı hafifçe çiz.</p>
+  </div>
+
+  <!-- Parça paneli -->
+  <div class="perde gizli" data-panel="parcaP"></div>
+  <div class="panel gizli" id="parcaP">
+    <h2>✂️ Parçalara böl <button data-kapat="parcaP" aria-label="Kapat">✕</button></h2>
+    <div class="acma"><span>Parça modu</span><button class="anahtar" id="parcaAnahtar" aria-label="Parça modu aç/kapat"></button></div>
+    <div class="acma"><span>Sütun</span><div class="adim"><button data-parca="sutun,-1">−</button><output id="parcaSutun"></output><button data-parca="sutun,1">+</button></div></div>
+    <div class="acma"><span>Satır</span><div class="adim"><button data-parca="satir,-1">−</button><output id="parcaSatir"></output><button data-parca="satir,1">+</button></div></div>
+    <div id="harita"><img id="haritaResim" alt=""><div id="haritaIzgara"></div></div>
+    <button class="genis" id="bittiD">✓ Bu parça bitti</button>
+    <p class="aciklama">Ekrandan büyük bir çizim için görsel parçalara bölünür. Parçalar birbirinin üstüne <b>%12 taşar</b>: yeni parçaya geçince taşan kısmı, az önce çizdiğin çizgilerin üstüne oturtarak hizalarsın — cetvel gerekmez. Parçaları geçerken boyut <b>değişmez</b>, yalnızca görsel ortaya gelir. Kesikli çizgi parçanın asıl sınırıdır.</p>
+  </div>
+
+  <div id="ipucu" class="gizli"><div class="kart">
+    <h2 style="margin:0 0 .3rem;color:var(--altin);font-size:1.1rem">🪄 Nasıl çizilir?</h2>
+    <ol>
+      <li>Telefonu kâğıdın üstünde <b>sabitle</b> — bardak, kitap yığını ya da telefon tutucu.</li>
+      <li>Görseli <b>iki parmakla</b> büyüt, döndür, yerleştir.</li>
+      <li>Saydamlığı 👁 ile ayarla.</li>
+      <li><b>🔒 Kilitle</b> — artık dokunsan da kaymaz.</li>
+      <li>Ekrana değil, <b>kâğıda</b> bakarak çiz.</li>
+    </ol>
+    <button class="genis" id="ipucuTamam" style="margin:0">Anladım</button>
+  </div></div>
+</section>
+
+<div id="serit" class="gizli" role="status"></div>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s);
+const NS='http://www.w3.org/2000/svg';
+
+/* ── DURUM ────────────────────────────────────────────────────────────
+   t: görsel bölgesinin EKRANDAKİ yeri. x,y = bölge merkezinin ekran konumu,
+   s = bir görsel pikselinin kaç ekran pikseli olduğu, r = dönüş (radyan).
+   s'yi piksel başına tutmak bilinçli: parçalar arasında geçerken ÖLÇEK AYNI
+   kalıyor, yani kâğıttaki boyut da aynı kalıyor. */
+const D={
+  blob:null, url:null, W:0, H:0,
+  mod:'kamera',
+  t:{x:0,y:0,s:1,r:0},
+  opak:0.5,
+  izgara:{acik:false, sutun:8},
+  parca:{acik:false, sutun:2, satir:3, secili:0, biten:[]},
+  kilit:false
+};
+const BINDIRME=0.12;   // parçalar birbirine %12 taşar
+
+/* ── ŞERİT ─────────────────────────────────────────────────────────── */
+let seritZaman=null;
+function serit(metin, tur, sure){
+  const s=$('#serit'); s.textContent=metin; s.className=tur==='uyari'?'uyari':'';
+  clearTimeout(seritZaman); seritZaman=setTimeout(()=>s.classList.add('gizli'), sure||4200);
+}
+
+/* ── KAYIT (IndexedDB) ─────────────────────────────────────────────────
+   Görsel + ayarlar + hangi parçaların bittiği saklanıyor: A4'lük bir çizim
+   birkaç günde bitebilir, her seferinde baştan ayarlamak gerekmesin.
+   Kayıt açılamazsa (gizli sekme vb.) uygulama yine çalışır, yalnızca hatırlamaz. */
+function dbAc(){
+  return new Promise((ok,no)=>{
+    try{
+      const r=indexedDB.open('geminio',1);
+      r.onupgradeneeded=()=>r.result.createObjectStore('durum');
+      r.onsuccess=()=>ok(r.result); r.onerror=()=>no(r.error);
+    }catch(e){ no(e); }
+  });
+}
+async function kaydet(){
+  if(!D.blob) return;
+  try{
+    const db=await dbAc();
+    db.transaction('durum','readwrite').objectStore('durum').put({
+      blob:D.blob, mod:D.mod, opak:D.opak, izgara:D.izgara, parca:D.parca,
+      s:D.t.s, r:D.t.r, ts:Date.now()
+    },'son');
+  }catch(e){}
+}
+let kayitZaman=null;
+function kaydetBirazSonra(){ clearTimeout(kayitZaman); kayitZaman=setTimeout(kaydet,700); }
+async function oku(){
+  try{
+    const db=await dbAc();
+    return await new Promise(ok=>{
+      const r=db.transaction('durum').objectStore('durum').get('son');
+      r.onsuccess=()=>ok(r.result||null); r.onerror=()=>ok(null);
+    });
+  }catch(e){ return null; }
+}
+
+/* ── GÖRSEL YÜKLEME ────────────────────────────────────────────────── */
+function gorselYukle(blob){
+  return new Promise((ok,no)=>{
+    const url=URL.createObjectURL(blob);
+    const img=new Image();
+    img.onload=()=>{
+      if(D.url) URL.revokeObjectURL(D.url);
+      D.blob=blob; D.url=url; D.W=img.naturalWidth; D.H=img.naturalHeight; ok();
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(url); no(new Error('görsel açılamadı')); };
+    img.src=url;
+  });
+}
+
+/* ── BÖLGE: tüm görsel ya da seçili parça (bindirme payıyla) ──────────── */
+function parcaSayisi(){ return D.parca.sutun*D.parca.satir; }
+function parcaCekirdek(i){
+  const cw=D.W/D.parca.sutun, ch=D.H/D.parca.satir;
+  const c=i%D.parca.sutun, r=Math.floor(i/D.parca.sutun);
+  return {x:c*cw, y:r*ch, w:cw, h:ch};
+}
+function bolge(){
+  if(!D.parca.acik) return {x:0,y:0,w:D.W,h:D.H,cekirdek:null};
+  const k=parcaCekirdek(D.parca.secili);
+  const px=k.w*BINDIRME, py=k.h*BINDIRME;
+  const x0=Math.max(0,k.x-px), y0=Math.max(0,k.y-py);
+  const x1=Math.min(D.W,k.x+k.w+px), y1=Math.min(D.H,k.y+k.h+py);
+  return {x:x0,y:y0,w:x1-x0,h:y1-y0,cekirdek:k};
+}
+
+/* ── ÇİZİM ─────────────────────────────────────────────────────────────
+   Tek bir SVG: viewBox bölgeyi seçiyor, görsel + ızgara + parça sınırı aynı
+   koordinatta. Izgara GÖRSELİN piksellerine göre çiziliyor, parçaya göre değil:
+   böylece ızgara çizgileri parçadan parçaya kesintisiz devam ediyor ve
+   hizalamaya yardım ediyor. */
+function el(ad, oz){ const e=document.createElementNS(NS,ad); for(const k in oz) e.setAttribute(k,oz[k]); return e; }
+function ciz(){
+  const svg=$('#katman'); if(!D.url){ svg.innerHTML=''; return; }
+  const b=bolge();
+  svg.setAttribute('viewBox',`${b.x} ${b.y} ${b.w} ${b.h}`);
+  svg.setAttribute('width',b.w); svg.setAttribute('height',b.h);
+  svg.innerHTML='';
+  const kirp=el('clipPath',{id:'kirp'}); kirp.appendChild(el('rect',{x:b.x,y:b.y,width:b.w,height:b.h}));
+  const defs=el('defs',{}); defs.appendChild(kirp); svg.appendChild(defs);
+  const g=el('g',{'clip-path':'url(#kirp)'});
+  const resim=el('image',{href:D.url,x:0,y:0,width:D.W,height:D.H,preserveAspectRatio:'none',opacity:D.opak});
+  g.appendChild(resim);
+
+  if(D.izgara.acik){
+    const kare=D.W/D.izgara.sutun, satirlar=Math.ceil(D.H/kare-1e-6);
+    const yol=[];
+    for(let i=0;i<=D.izgara.sutun;i++) yol.push(`M${i*kare},0V${D.H}`);
+    for(let j=0;j<=satirlar;j++){ const y=Math.min(j*kare,D.H); yol.push(`M0,${y}H${D.W}`); }
+    const d=yol.join('');
+    // Çift çizgi: koyu hale + açık çizgi — her renkte görselin üstünde seçilsin
+    g.appendChild(el('path',{d,fill:'none',stroke:'#000','stroke-opacity':.55,'data-k':3}));
+    g.appendChild(el('path',{d,fill:'none',stroke:'#fff','stroke-opacity':.9,'data-k':1.2}));
+    // Kareleme modunda sütun harfleri + satır numaraları (klasik "B3 karesi")
+    if(D.mod==='kare'){
+      const fs=kare*0.32;
+      for(let i=0;i<D.izgara.sutun;i++) g.appendChild(etiket(i*kare+kare/2, b.y+fs*1.05, harf(i), fs));
+      for(let j=0;j<satirlar;j++) g.appendChild(etiket(b.x+fs*0.75, j*kare+kare/2+fs*0.35, String(j+1), fs));
+    }
+  }
+  if(b.cekirdek){
+    const k=b.cekirdek;
+    g.appendChild(el('rect',{x:k.x,y:k.y,width:k.w,height:k.h,fill:'none',stroke:'#e8c46a','data-k':2.5,'data-kesik':'10 7'}));
+  }
+  svg.appendChild(g);
+  yerlestir();
+  parcaSeridiTazele();
+}
+function harf(i){ let s=''; i++; while(i>0){ const m=(i-1)%26; s=String.fromCharCode(65+m)+s; i=Math.floor((i-1)/26); } return s; }
+function etiket(x,y,metin,fs){
+  const t=el('text',{x,y,'font-size':fs,'text-anchor':'middle','font-family':'system-ui,sans-serif','font-weight':700,
+    fill:'#3a2d60',stroke:'#fff','stroke-width':fs*0.14,'paint-order':'stroke'});
+  t.textContent=metin; return t;
+}
+/* Çizgi kalınlıkları EKRAN pikseli olarak sabit: data-k="1.2" → ekranda hep
+   1.2 px. ⚠️ `vector-effect:non-scaling-stroke` BURADA İŞE YARAMIYOR — SVG'nin
+   kendisine verilen CSS dönüşümünü hesaba katmıyor; büyük fotoğrafta ızgara
+   görünmeyecek kadar incelir, yakınlaştırınca kalınlaşırdı. O yüzden her
+   yerleştirmede ölçeğe bölünerek elle yazılıyor (en fazla 3 öğe, maliyetsiz). */
+function yerlestir(){
+  const b=bolge(), t=D.t, svg=$('#katman');
+  svg.style.transform=`translate(${t.x}px,${t.y}px) rotate(${t.r}rad) scale(${t.s}) translate(${-b.w/2}px,${-b.h/2}px)`;
+  svg.querySelectorAll('[data-k]').forEach(e=>{
+    e.setAttribute('stroke-width',(+e.dataset.k)/t.s);
+    if(e.dataset.kesik) e.setAttribute('stroke-dasharray',e.dataset.kesik.split(' ').map(v=>v/t.s).join(' '));
+  });
+}
+function sigdir(){
+  const b=bolge();
+  const W=innerWidth, H=innerHeight-(D.kilit?0:170);
+  D.t={x:innerWidth/2, y:H/2+ (D.kilit?0:10), s:Math.min(W*0.9/b.w, H*0.9/b.h), r:0};
+  yerlestir();
+}
+function ortala(){ const H=innerHeight-(D.kilit?0:170); D.t.x=innerWidth/2; D.t.y=H/2+10; yerlestir(); kaydetBirazSonra(); }
+
+/* ── DOKUNMA: bir parmak kaydırır, iki parmak büyütür + döndürür ─────────
+   İki parmakta parmakların arasındaki görsel noktası parmakların altında
+   kalıyor (hesap: o noktayı görselin kendi koordinatına çevir, sonra yeni
+   ölçek/dönüşle ekrana geri çevir). Kaydırırken kaymayan "yapışık" his bu. */
+const parmaklar=new Map(); let bas=null;
+function baslangicKaydet(){
+  const p=[...parmaklar.values()];
+  if(p.length===1){ bas={tek:true, px:p[0].x, py:p[0].y, x:D.t.x, y:D.t.y}; return; }
+  if(p.length>=2){
+    const [a,c]=p, mx=(a.x+c.x)/2, my=(a.y+c.y)/2;
+    const dx=mx-D.t.x, dy=my-D.t.y, cs=Math.cos(-D.t.r), sn=Math.sin(-D.t.r);
+    bas={tek:false, d:Math.hypot(c.x-a.x,c.y-a.y), a:Math.atan2(c.y-a.y,c.x-a.x), s:D.t.s, r:D.t.r,
+         qx:(dx*cs-dy*sn)/D.t.s, qy:(dx*sn+dy*cs)/D.t.s};
+  }
+}
+const sahne=$('#sahne');
+sahne.addEventListener('pointerdown',e=>{
+  if(D.kilit||!D.url) return;
+  parmaklar.set(e.pointerId,{x:e.clientX,y:e.clientY}); baslangicKaydet();
+  // Yakalama başarısız olursa (bazı tarayıcılarda, dokunuş tam o anda bittiyse)
+  // hareket yine çalışmalı — hata fırlatıp dokunuşu yarıda bırakmasın.
+  try{ sahne.setPointerCapture(e.pointerId); }catch(_){}
+});
+sahne.addEventListener('pointermove',e=>{
+  if(D.kilit||!parmaklar.has(e.pointerId)||!bas) return;
+  parmaklar.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  const p=[...parmaklar.values()];
+  if(bas.tek && p.length===1){
+    D.t.x=bas.x+(p[0].x-bas.px); D.t.y=bas.y+(p[0].y-bas.py);
+  } else if(!bas.tek && p.length>=2){
+    const [a,c]=p, mx=(a.x+c.x)/2, my=(a.y+c.y)/2;
+    const s=Math.max(0.01,Math.min(80,bas.s*Math.hypot(c.x-a.x,c.y-a.y)/bas.d));
+    const r=bas.r+(Math.atan2(c.y-a.y,c.x-a.x)-bas.a);
+    const cs=Math.cos(r), sn=Math.sin(r);
+    D.t.s=s; D.t.r=r;
+    D.t.x=mx-(bas.qx*cs-bas.qy*sn)*s; D.t.y=my-(bas.qx*sn+bas.qy*cs)*s;
+  }
+  yerlestir();
+});
+function parmakBirak(e){
+  if(!parmaklar.has(e.pointerId)) return;
+  parmaklar.delete(e.pointerId);
+  bas=null; if(parmaklar.size) baslangicKaydet();
+  kaydetBirazSonra();
+}
+sahne.addEventListener('pointerup',parmakBirak);
+sahne.addEventListener('pointercancel',parmakBirak);
+// Bilgisayarda deneme için: fare tekerleği imlecin altında büyütür
+sahne.addEventListener('wheel',e=>{
+  if(D.kilit||!D.url) return; e.preventDefault();
+  const k=Math.exp(-e.deltaY*0.0015), yeni=Math.max(0.01,Math.min(80,D.t.s*k)); const oran=yeni/D.t.s;
+  D.t.x=e.clientX-(e.clientX-D.t.x)*oran; D.t.y=e.clientY-(e.clientY-D.t.y)*oran; D.t.s=yeni;
+  yerlestir(); kaydetBirazSonra();
+},{passive:false});
+
+/* ── KAMERA ────────────────────────────────────────────────────────── */
+let akis=null;
+async function kameraAc(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    serit('Bu tarayıcı kameraya izin vermiyor. Sayfayı https:// adresinden açtığından emin ol ya da Kareleme modunu kullan.','uyari',7000);
+    return false;
+  }
+  try{
+    akis=await navigator.mediaDevices.getUserMedia({audio:false,
+      video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}}});
+    const v=$('#video'); v.srcObject=akis; await v.play().catch(()=>{});
+    return true;
+  }catch(e){
+    const izin=e&&(e.name==='NotAllowedError'||e.name==='SecurityError');
+    serit(izin
+      ?'Kamera izni verilmedi. Tarayıcının site ayarlarından kameraya izin ver — ya da kamerasız Kareleme modunu kullan.'
+      :'Kamera açılamadı ('+(e&&e.name||'bilinmeyen hata')+'). Kamerasız Kareleme modunu deneyebilirsin.','uyari',8000);
+    return false;
+  }
+}
+function kameraKapat(){ if(akis){ akis.getTracks().forEach(t=>t.stop()); akis=null; } $('#video').srcObject=null; }
+
+/* ── EKRAN SÖNMESİN ─────────────────────────────────────────────────────
+   Kâğıda çizerken ekrana dokunulmuyor; telefon birkaç dakikada kararıyor ve
+   kamera kapanıyordu — uygulamayı kullanılmaz yapan şey bu olurdu.
+   Sekme arkaya atılınca tarayıcı kilidi bırakıyor; dönünce yeniden alınıyor.
+   Desteklemeyen tarayıcıda sessizce geçiliyor. */
+let uyanik=null, calismaAcik=false;
+async function uyanikTut(){
+  try{ if('wakeLock' in navigator && document.visibilityState==='visible' && !uyanik){
+    uyanik=await navigator.wakeLock.request('screen'); uyanik.addEventListener('release',()=>{uyanik=null;}); } }catch(e){}
+}
+function uyanikBirak(){ try{ uyanik&&uyanik.release(); }catch(e){} uyanik=null; }
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&calismaAcik){
+    uyanikTut();
+    // Bazı telefonlar arkaya atılınca kamerayı durduruyor
+    if(D.mod==='kamera'&&akis&&akis.getVideoTracks().some(t=>t.readyState==='ended')){ kameraKapat(); kameraAc(); }
+  }
+});
+
+/* ── EKRANLAR ──────────────────────────────────────────────────────── */
+async function calismayaGec(mod, sakla){
+  D.mod=mod;
+  $('#baslangic').classList.add('gizli'); $('#calisma').classList.remove('gizli');
+  $('#calisma').classList.toggle('kare', mod==='kare');
+  $('#video').classList.toggle('gizli', mod!=='kamera');
+  calismaAcik=true;
+  if(!sakla){ D.opak = mod==='kare'?1:0.5; if(mod==='kare') D.izgara.acik=true; }
+  $('#opak').value=D.opak;
+  ciz();
+  if(sakla&&sakla.s){ sigdir(); D.t.s=sakla.s; D.t.r=sakla.r||0; ortala(); } else sigdir();
+  aracTazele();
+  uyanikTut();
+  if(mod==='kamera'){
+    const ok=await kameraAc();
+    if(ok){ try{ if(!localStorage.getItem('geminio-ipucu')) $('#ipucu').classList.remove('gizli'); }catch(e){ $('#ipucu').classList.remove('gizli'); } }
+  }
+  kaydetBirazSonra();
+}
+function basaDon(){
+  kameraKapat(); uyanikBirak(); calismaAcik=false; kilitle(false);
+  $('#calisma').classList.add('gizli'); $('#baslangic').classList.remove('gizli');
+  kaydet(); devamKutusunuGoster();
+}
+
+/* ── KİLİT ─────────────────────────────────────────────────────────── */
+function kilitle(ac){
+  D.kilit=ac;
+  $('#arac').classList.toggle('gizli',ac); $('.ust-sol').classList.toggle('gizli',ac);
+  $('#kilitAc').classList.toggle('gizli',!ac);
+  const ip=$('#kilitIpucu'); ip.classList.toggle('gizli',!ac); ip.style.opacity=1;
+  if(ac){ parmaklar.clear(); bas=null; setTimeout(()=>{ip.style.opacity=0;},2500); }
+}
+(function(){
+  const d=$('#kilitAc'); let z=null;
+  const bitir=()=>{ clearTimeout(z); z=null; d.classList.remove('basili'); };
+  d.addEventListener('pointerdown',e=>{ e.preventDefault(); d.classList.add('basili');
+    z=setTimeout(()=>{ bitir(); kilitle(false); },800); });
+  ['pointerup','pointerleave','pointercancel'].forEach(o=>d.addEventListener(o,()=>{ if(z){ bitir(); const ip=$('#kilitIpucu'); ip.classList.remove('gizli'); ip.style.opacity=1; setTimeout(()=>{ip.style.opacity=0;},1800);} }));
+})();
+
+/* ── ARAÇ ÇUBUĞU ───────────────────────────────────────────────────── */
+function aracTazele(){
+  $('#izgaraD').classList.toggle('acik',D.izgara.acik);
+  $('#parcaD').classList.toggle('acik',D.parca.acik);
+  $('#izgaraAnahtar').classList.toggle('acik',D.izgara.acik);
+  $('#parcaAnahtar').classList.toggle('acik',D.parca.acik);
+  $('#izgaraSay').textContent=D.izgara.sutun;
+  $('#parcaSutun').textContent=D.parca.sutun; $('#parcaSatir').textContent=D.parca.satir;
+  parcaSeridiTazele(); parcaHaritasi();
+}
+function parcaSeridiTazele(){
+  const s=$('#parcaSerit'); s.classList.toggle('gizli',!D.parca.acik);
+  if(!D.parca.acik) return;
+  const i=D.parca.secili, n=parcaSayisi(), bitti=D.parca.biten.includes(i);
+  $('#parcaEtiket').textContent=`Parça ${i+1} / ${n}${bitti?' ✓':''}`;
+}
+function parcaSec(i){
+  const n=parcaSayisi(); D.parca.secili=((i%n)+n)%n;
+  // Ölçek ve dönüş AYNI kalıyor (kâğıttaki boyut değişmesin), yalnızca ortaya geliyor
+  ciz(); ortala(); aracTazele(); kaydetBirazSonra();
+}
+function panelAc(id){ document.querySelector(`[data-panel="${id}"]`).classList.remove('gizli'); $('#'+id).classList.remove('gizli'); if(id==='parcaP') parcaHaritasi(); }
+function panelKapat(id){ document.querySelector(`[data-panel="${id}"]`).classList.add('gizli'); $('#'+id).classList.add('gizli'); }
+document.querySelectorAll('[data-kapat]').forEach(b=>b.onclick=()=>panelKapat(b.dataset.kapat));
+document.querySelectorAll('.perde').forEach(p=>p.onclick=()=>panelKapat(p.dataset.panel));
+
+function parcaHaritasi(){
+  if(!D.url) return;
+  $('#haritaResim').src=D.url;
+  const iz=$('#haritaIzgara');
+  iz.style.gridTemplateColumns=`repeat(${D.parca.sutun},1fr)`; iz.style.gridTemplateRows=`repeat(${D.parca.satir},1fr)`;
+  iz.innerHTML='';
+  for(let i=0;i<parcaSayisi();i++){
+    const b=document.createElement('button');
+    b.textContent=D.parca.biten.includes(i)?'✓':String(i+1);
+    if(D.parca.biten.includes(i)) b.classList.add('bitti');
+    if(D.parca.acik&&i===D.parca.secili) b.classList.add('secili');
+    b.onclick=()=>{ if(!D.parca.acik){ D.parca.acik=true; sigdirSonraSec(i); } else parcaSec(i); };
+    iz.appendChild(b);
+  }
+  const bitti=D.parca.biten.includes(D.parca.secili);
+  const bd=$('#bittiD'); bd.classList.toggle('gizli',!D.parca.acik);
+  bd.textContent=bitti?'↩ Bitti işaretini kaldır':'✓ Bu parça bitti'; bd.classList.toggle('tamam',bitti);
+}
+function sigdirSonraSec(i){ D.parca.secili=i; ciz(); sigdir(); aracTazele(); kaydetBirazSonra(); }
+
+$('#opak').addEventListener('input',e=>{ D.opak=+e.target.value; const r=$('#katman image'); if(r) r.setAttribute('opacity',D.opak); kaydetBirazSonra(); });
+$('#kilitD').onclick=()=>kilitle(true);
+$('#izgaraD').onclick=()=>panelAc('izgaraP');
+$('#parcaD').onclick=()=>panelAc('parcaP');
+$('#ortalaD').onclick=ortala;
+$('#oncekiD').onclick=()=>parcaSec(D.parca.secili-1);
+$('#sonrakiD').onclick=()=>parcaSec(D.parca.secili+1);
+$('#geriD').onclick=basaDon;
+$('#izgaraAnahtar').onclick=()=>{ D.izgara.acik=!D.izgara.acik; ciz(); aracTazele(); kaydetBirazSonra(); };
+document.querySelectorAll('[data-izgara]').forEach(b=>b.onclick=()=>{
+  D.izgara.sutun=Math.max(2,Math.min(40,D.izgara.sutun+(+b.dataset.izgara))); D.izgara.acik=true; ciz(); aracTazele(); kaydetBirazSonra(); });
+$('#parcaAnahtar').onclick=()=>{
+  D.parca.acik=!D.parca.acik; D.parca.secili=Math.min(D.parca.secili,parcaSayisi()-1);
+  ciz(); sigdir(); aracTazele(); kaydetBirazSonra(); };
+document.querySelectorAll('[data-parca]').forEach(b=>b.onclick=()=>{
+  const [alan,fark]=b.dataset.parca.split(','); const eski=D.parca[alan];
+  D.parca[alan]=Math.max(1,Math.min(6,eski+(+fark)));
+  if(D.parca[alan]===eski) return;
+  // Bölme değişince eski "bitti" işaretleri başka parçalara denk gelir — sıfırlanıyor
+  if(D.parca.biten.length) serit('Parça sayısı değişti; "bitti" işaretleri sıfırlandı.');
+  D.parca.biten=[]; D.parca.secili=0; D.parca.acik=true;
+  ciz(); sigdir(); aracTazele(); kaydetBirazSonra(); });
+$('#bittiD').onclick=()=>{
+  const i=D.parca.secili, b=D.parca.biten;
+  if(b.includes(i)) D.parca.biten=b.filter(x=>x!==i);
+  else{
+    D.parca.biten=[...b,i];
+    if(D.parca.biten.length===parcaSayisi()) serit('🎉 Bütün parçalar bitti! Geminio!');
+  }
+  aracTazele(); kaydetBirazSonra();
+};
+$('#ipucuTamam').onclick=()=>{ $('#ipucu').classList.add('gizli'); try{ localStorage.setItem('geminio-ipucu','1'); }catch(e){} };
+addEventListener('resize',()=>{ if(calismaAcik) yerlestir(); });
+
+/* ── BAŞLANGIÇ EKRANI ──────────────────────────────────────────────── */
+$('#gorselSecD').onclick=()=>$('#gorselGirdi').click();
+$('#gorselGirdi').addEventListener('change',async e=>{
+  const f=e.target.files&&e.target.files[0]; e.target.value=''; if(!f) return;
+  try{
+    await gorselYukle(f);
+    // Yeni görsel = yeni çizim: parça ilerlemesi ve ölçek sıfırlanır
+    // Önerilen bölme görselin biçimine göre: dikey 2×3, yatay 3×2, kareye yakın 2×2
+    const oran=D.H/D.W;
+    D.parca={acik:false, sutun:oran<0.87?3:2, satir:oran>1.15?3:2, secili:0, biten:[]};
+    D.izgara={acik:false, sutun:8};
+    const o=$('#onizleme'); o.src=D.url; o.classList.remove('gizli');
+    $('#modlar').classList.remove('gizli'); $('#devamKutu').classList.add('gizli');
+  }catch(err){ serit('Bu dosya açılamadı. Başka bir görsel dener misin?','uyari'); }
+});
+$('#kameraD').onclick=()=>calismayaGec('kamera');
+$('#kareD').onclick=()=>calismayaGec('kare');
+
+async function devamKutusunuGoster(){
+  const k=await oku(); const kutu=$('#devamKutu');
+  if(!k||!k.blob){ kutu.classList.add('gizli'); return; }
+  const url=URL.createObjectURL(k.blob);
+  const p=k.parca||{}; const n=(p.sutun||1)*(p.satir||1);
+  const bilgi=p.acik?`Parça ${(p.secili||0)+1}/${n} · ${(p.biten||[]).length} bitti`:(k.mod==='kare'?'Kareleme':'Kamerayla çizim');
+  kutu.innerHTML=`<button class="buyuk" id="devamD"><img src="${url}" alt=""><span><b>Kaldığın yerden devam</b><small>${bilgi}</small></span></button>`;
+  kutu.classList.remove('gizli');
+  $('#devamD').onclick=async()=>{
+    try{
+      await gorselYukle(k.blob);
+      D.opak=k.opak??0.5; D.izgara=k.izgara||D.izgara; D.parca=Object.assign({acik:false,sutun:2,satir:3,secili:0,biten:[]},k.parca||{});
+      calismayaGec(k.mod||'kamera',{s:k.s,r:k.r});
+    }catch(e){ serit('Kayıtlı görsel açılamadı.','uyari'); }
+  };
+}
+
+if(location.protocol!=='https:'&&location.hostname!=='localhost'&&location.hostname!=='127.0.0.1')
+  $('#httpsNotu').textContent='⚠️ Kamera yalnızca https:// adresinde çalışır. Kareleme modu her yerde çalışır.';
+devamKutusunuGoster();
+</script>
+</body>
+</html>
