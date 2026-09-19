@@ -270,11 +270,21 @@ input[type=range]{flex:1;accent-color:var(--altin);height:28px}
     <div id="olcuSonuc" class="gizli">
       <div class="acma"><span>Çizimin boyu</span><b id="olcuBoyut"></b></div>
       <div style="margin:.6rem 0 .2rem;color:var(--soluk);font-size:.82rem">Kâğıda sığdır (kenarda 1 cm boşluk kalır):</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+        <button class="genis" style="margin:0" data-kagit="105,148">A6</button>
         <button class="genis" style="margin:0" data-kagit="148,210">A5</button>
         <button class="genis" style="margin:0" data-kagit="210,297">A4</button>
         <button class="genis" style="margin:0" data-kagit="297,420">A3</button>
       </div>
+      <div class="acma" style="gap:6px;flex-wrap:wrap"><span>Başka kâğıt (cm)</span>
+        <div class="adim">
+          <input type="number" id="ozelEn" min="1" max="500" step="0.5" inputmode="decimal" placeholder="en"
+            style="width:72px;padding:.5rem;border-radius:8px;border:1px solid rgba(232,196,106,.35);background:var(--gece2);color:var(--yazi);font-size:1rem">
+          <span style="color:var(--soluk)">×</span>
+          <input type="number" id="ozelBoy" min="1" max="500" step="0.5" inputmode="decimal" placeholder="boy"
+            style="width:72px;padding:.5rem;border-radius:8px;border:1px solid rgba(232,196,106,.35);background:var(--gece2);color:var(--yazi);font-size:1rem">
+          <button id="ozelKagitD" style="width:auto;padding:0 .9rem">Sığdır</button>
+        </div></div>
       <div class="acma"><span>Genişliğini şu yap (cm)</span>
         <div class="adim">
           <input type="number" id="hedefEn" min="0.5" max="500" step="0.1" inputmode="decimal"
@@ -716,22 +726,39 @@ $('#olcuOzelD').onclick=()=>$('#olcuOzelKutu').classList.toggle('gizli');
 $('#olcuOzelTamam').onclick=()=>{ const v=parseFloat(($('#olcuOzel').value||'').replace(',','.'));
   if(!(v>0)){ serit('Önce uzunluğu santim olarak yaz.','uyari'); return; } olcumeBasla(v*10, v.toString().replace('.',',')+' cm uzunluğundaki şey'); };
 /* Kâğıda sığdır — kenarlarda 10 mm boşluk bırakıyor ve kâğıdı hangi yöne
-   çevirmek daha büyük bir çizim veriyorsa onu seçiyor. */
-document.querySelectorAll('[data-kagit]').forEach(b=>b.onclick=()=>{
+   çevirmek daha büyük bir çizim veriyorsa onu seçiyor.
+   ⚠️ İŞ BİTİNCE MENÜ KAPANIYOR (2026-09-19): panel ekranın yarısını kapattığı
+   için arkada yapılan değişiklik görünmüyordu ve düğme "hiçbir şey yapmadı"
+   hissi veriyordu (Gökşin bildirdi). Artık menü kalkıyor, sonuç görünüyor,
+   üstte de ne olduğunu yazan şerit çıkıyor. */
+function kagidaSigdir(kisaMm, uzunMm, ad){
   const k=mmPx(); if(!k){ serit('Önce ölçü al.','uyari'); return; }
-  const [kisa,uzun]=b.dataset.kagit.split(',').map(Number), pay=10;
+  const pay=10;
   const sigdir=(en,boy)=>Math.min((en-2*pay)/D.W,(boy-2*pay)/D.H);
-  const mmPerPx=Math.max(sigdir(kisa,uzun), sigdir(uzun,kisa));   // dikey / yatay
-  D.t.s=mmPerPx/k;
+  const en=Math.max(sigdir(kisaMm,uzunMm), sigdir(uzunMm,kisaMm));   // dikey / yatay
+  if(!(en>0)){ serit('Bu kâğıt, 1 cm boşluk payı için fazla küçük.','uyari'); return; }
+  D.t.s=en/k;
   ortala(); boyutCipTazele(); olcuSonucTazele();
-  serit(b.textContent.trim()+' boyuna getirildi: '+cmYaz(D.W*D.t.s*k)+' × '+cmYaz(D.H*D.t.s*k)+' cm');
+  panelKapatTam('olcuP');
+  serit('✓ '+ad+': çizim '+cmYaz(D.W*D.t.s*k)+' × '+cmYaz(D.H*D.t.s*k)+' cm oldu',null,5000);
+}
+document.querySelectorAll('[data-kagit]').forEach(b=>b.onclick=()=>{
+  const [kisa,uzun]=b.dataset.kagit.split(',').map(Number);
+  kagidaSigdir(kisa,uzun,b.textContent.trim()+' kâğıda sığdırıldı');
 });
+$('#ozelKagitD').onclick=()=>{
+  const en=parseFloat(($('#ozelEn').value||'').replace(',','.')), boy=parseFloat(($('#ozelBoy').value||'').replace(',','.'));
+  if(!(en>0)||!(boy>0)){ serit('Kâğıdın enini ve boyunu santim olarak yaz.','uyari'); return; }
+  kagidaSigdir(Math.min(en,boy)*10, Math.max(en,boy)*10, en+'×'+boy+' cm kâğıda sığdırıldı');
+};
 $('#hedefUygula').onclick=()=>{
   const k=mmPx(); if(!k) return;
   const v=parseFloat(($('#hedefEn').value||'').replace(',','.'));
   if(!(v>0)){ serit('Bir genişlik yaz (santim).','uyari'); return; }
   D.t.s=(v*10)/(D.W*k);
   ortala(); boyutCipTazele(); olcuSonucTazele();
+  panelKapatTam('olcuP');   // sonuç görünsün (bkz. kagidaSigdir'daki not)
+  serit('✓ Çizim '+cmYaz(D.W*D.t.s*k)+' × '+cmYaz(D.H*D.t.s*k)+' cm oldu',null,5000);
 };
 $('#olcuSilD').onclick=()=>{ D.olcu[D.mod]=null; boyutCipTazele(); $('#olcuSonuc').classList.add('gizli');
   kaydetBirazSonra(); serit('Ölçü unutuldu. Yukarıdan neyi ölçeceğini seçip yeniden ölçebilirsin.'); };
