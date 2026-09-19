@@ -82,7 +82,20 @@ input[type=range]{flex:1;accent-color:var(--altin);height:28px}
 .arac-d.acik span{color:var(--altin)}
 #parcaSerit{display:flex;align-items:center;justify-content:center;gap:10px}
 #parcaSerit button{min-width:52px;padding:.45rem .7rem;border-radius:10px;border:1px solid rgba(232,196,106,.35);background:var(--gece2);font-size:1rem}
-#parcaEtiket{font-size:.95rem;min-width:110px;text-align:center}
+#parcaEtiket{font-size:.95rem;min-width:150px;text-align:center}
+#bittiSeritD.tamam{background:rgba(127,182,133,.35);border-color:var(--tamam);color:var(--tamam)}
+/* Boyut şeridi: hem ölçüyü gösteriyor hem ölçmeye götürüyor — özellik
+   panelin içinde saklı kalmasın (parça "bitti" düğmesinin başına gelen buydu). */
+#boyutCip{align-self:center;padding:.4rem .85rem;border-radius:999px;border:1px solid rgba(232,196,106,.35);
+  background:var(--gece2);font-size:.85rem;color:var(--yazi)}
+#boyutCip.olcusuz{color:var(--soluk)}
+
+/* Ölçü çubuğu */
+#olcuKat{position:absolute;inset:0;z-index:7;touch-action:none}
+#olcuKat svg{position:absolute;inset:0;width:100%;height:100%}
+.olcuTut{position:absolute;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;
+  background:rgba(232,196,106,.22);border:2px solid var(--altin);display:grid;place-items:center;touch-action:none}
+.olcuTut::after{content:"";width:12px;height:12px;border-radius:50%;background:var(--altin)}
 
 /* Kilit: araç çubuğu gizlenir, tek bir düğme kalır. Kâğıda çizen el ekrana
    değebilir — o yüzden kilit AÇMAK için basılı tutmak gerekiyor. */
@@ -170,7 +183,12 @@ input[type=range]{flex:1;accent-color:var(--altin);height:28px}
       <button id="oncekiD" aria-label="Önceki parça">◀</button>
       <span id="parcaEtiket"></span>
       <button id="sonrakiD" aria-label="Sonraki parça">▶</button>
+      <!-- "Bitti" işareti ESKİDEN yalnızca ✂️ panelinin içindeydi ve
+           bulunamıyordu (Gökşin, 2026-09-19: "bitirdiğimi nasıl işaretleyeceğim?").
+           Artık hep görünen şeritte. -->
+      <button id="bittiSeritD" aria-label="Bu parçayı bitti işaretle">✓</button>
     </div>
+    <button id="boyutCip" aria-label="Gerçek boyut"></button>
     <div class="satir"><label for="opak" title="Saydamlık">👁</label><input type="range" id="opak" min="0.05" max="1" step="0.01"></div>
     <div class="dugmeler">
       <button class="arac-d" id="kilitD">🔒<span>Kilitle</span></button>
@@ -205,12 +223,44 @@ input[type=range]{flex:1;accent-color:var(--altin);height:28px}
     <p class="aciklama">Ekrandan büyük bir çizim için görsel parçalara bölünür. Parçalar birbirinin üstüne <b>%12 taşar</b>: yeni parçaya geçince taşan kısmı, az önce çizdiğin çizgilerin üstüne oturtarak hizalarsın — cetvel gerekmez. Parçaları geçerken boyut <b>değişmez</b>, yalnızca görsel ortaya gelir. Kesikli çizgi parçanın asıl sınırıdır.</p>
   </div>
 
+  <!-- Ölçü katmanı: iki uçlu çubuk, bilinen uzunlukta bir şeyin üstüne oturtuluyor -->
+  <div id="olcuKat" class="gizli">
+    <svg><line id="olcuCizgi" stroke="#e8c46a" stroke-width="3" stroke-dasharray="9 6"/></svg>
+    <div class="olcuTut" id="olcuA"></div><div class="olcuTut" id="olcuB"></div>
+  </div>
+  <div class="perde gizli" data-panel="olcuP"></div>
+  <div class="panel gizli" id="olcuP">
+    <h2>📏 Gerçek boyut <button data-kapat="olcuP" aria-label="Kapat">✕</button></h2>
+    <p class="aciklama" id="olcuAnlat" style="margin-top:0"></p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:.8rem 0">
+      <button class="genis" style="margin:0" data-olcu="85.6">💳 Banka kartı<br><small style="color:var(--soluk)">8,56 cm</small></button>
+      <button class="genis" style="margin:0" data-olcu="210">📄 A4 kısa kenar<br><small style="color:var(--soluk)">21 cm</small></button>
+      <button class="genis" style="margin:0" data-olcu="297">📄 A4 uzun kenar<br><small style="color:var(--soluk)">29,7 cm</small></button>
+      <button class="genis" style="margin:0" id="olcuOzelD">✏️ Başka bir şey<br><small style="color:var(--soluk)">uzunluğunu sen yaz</small></button>
+    </div>
+    <div id="olcuOzelKutu" class="gizli acma"><span>Uzunluğu (cm)</span>
+      <input type="number" id="olcuOzel" min="1" max="200" step="0.1" inputmode="decimal"
+        style="width:110px;padding:.5rem;border-radius:8px;border:1px solid rgba(232,196,106,.35);background:var(--gece2);color:var(--yazi);font-size:1rem">
+      <button class="genis" style="margin:0;width:auto;padding:.5rem 1rem" id="olcuOzelTamam">Tamam</button></div>
+
+    <div id="olcuSonuc" class="gizli">
+      <div class="acma"><span>Çizimin boyu</span><b id="olcuBoyut"></b></div>
+      <div class="acma"><span>Genişliğini şu yap (cm)</span>
+        <div class="adim">
+          <input type="number" id="hedefEn" min="0.5" max="500" step="0.1" inputmode="decimal"
+            style="width:90px;padding:.5rem;border-radius:8px;border:1px solid rgba(232,196,106,.35);background:var(--gece2);color:var(--yazi);font-size:1rem">
+          <button id="hedefUygula" style="width:auto;padding:0 .9rem">Uygula</button></div></div>
+      <button class="genis" id="olcuSilD">🗑 Ölçüyü unut</button>
+    </div>
+  </div>
+
   <div id="ipucu" class="gizli"><div class="kart">
     <h2 style="margin:0 0 .3rem;color:var(--altin);font-size:1.1rem">🪄 Nasıl çizilir?</h2>
     <ol>
       <li>Telefonu kâğıdın üstünde <b>sabitle</b> — bardak, kitap yığını ya da telefon tutucu.</li>
       <li>Görseli <b>iki parmakla</b> büyüt, döndür, yerleştir.</li>
       <li>Saydamlığı 👁 ile ayarla.</li>
+      <li>Kâğıtta kaç santim olacağını görmek için alttaki <b>📏</b> şeridine dokun.</li>
       <li><b>🔒 Kilitle</b> — artık dokunsan da kaymaz.</li>
       <li>Ekrana değil, <b>kâğıda</b> bakarak çiz.</li>
     </ol>
@@ -237,7 +287,10 @@ const D={
   opak:0.5,
   izgara:{acik:false, sutun:8},
   parca:{acik:false, sutun:2, satir:3, secili:0, biten:[]},
-  kilit:false
+  kilit:false,
+  // Bir EKRAN pikselinin kâğıtta kaç mm olduğu. İki mod ayrı: kamerada telefonun
+  // yüksekliğine, kamerasız modda ekranın kendisine bağlı (bkz. GERÇEK BOYUT).
+  olcu:{kamera:null, kare:null}
 };
 const BINDIRME=0.12;   // parçalar birbirine %12 taşar
 
@@ -267,7 +320,7 @@ async function kaydet(){
     const db=await dbAc();
     db.transaction('durum','readwrite').objectStore('durum').put({
       blob:D.blob, mod:D.mod, opak:D.opak, izgara:D.izgara, parca:D.parca,
-      s:D.t.s, r:D.t.r, ts:Date.now()
+      olcu:D.olcu, s:D.t.s, r:D.t.r, ts:Date.now()
     },'son');
   }catch(e){}
 }
@@ -373,6 +426,7 @@ function yerlestir(){
     e.setAttribute('stroke-width',(+e.dataset.k)/t.s);
     if(e.dataset.kesik) e.setAttribute('stroke-dasharray',e.dataset.kesik.split(' ').map(v=>v/t.s).join(' '));
   });
+  boyutCipTazele();   // büyütürken kâğıttaki boy canlı değişsin
 }
 function sigdir(){
   const b=bolge();
@@ -527,14 +581,98 @@ function aracTazele(){
   $('#parcaAnahtar').classList.toggle('acik',D.parca.acik);
   $('#izgaraSay').textContent=D.izgara.sutun;
   $('#parcaSutun').textContent=D.parca.sutun; $('#parcaSatir').textContent=D.parca.satir;
-  parcaSeridiTazele(); parcaHaritasi();
+  parcaSeridiTazele(); parcaHaritasi(); boyutCipTazele();
 }
 function parcaSeridiTazele(){
   const s=$('#parcaSerit'); s.classList.toggle('gizli',!D.parca.acik);
   if(!D.parca.acik) return;
   const i=D.parca.secili, n=parcaSayisi(), bitti=D.parca.biten.includes(i);
-  $('#parcaEtiket').textContent=`Parça ${i+1} / ${n}${bitti?' ✓':''}`;
+  $('#parcaEtiket').textContent=`Parça ${i+1} / ${n} · ${D.parca.biten.length} bitti`;
+  $('#bittiSeritD').classList.toggle('tamam',bitti);
+  $('#bittiSeritD').setAttribute('aria-label',bitti?'Bitti işaretini kaldır':'Bu parçayı bitti işaretle');
 }
+function bittiDegistir(){
+  const i=D.parca.secili, b=D.parca.biten;
+  if(b.includes(i)) D.parca.biten=b.filter(x=>x!==i);
+  else{
+    D.parca.biten=[...b,i];
+    if(D.parca.biten.length===parcaSayisi()) serit('🎉 Bütün parçalar bitti! Geminio!');
+  }
+  aracTazele(); kaydetBirazSonra();
+}
+
+/* ── GERÇEK BOYUT ────────────────────────────────────────────────────────
+   Kâğıttaki boyutu belirleyen şey ekran DEĞİL, telefonun kâğıda uzaklığı:
+   telefon yükseldikçe kamera daha geniş bir alan görür ve aynı görsel kâğıtta
+   daha büyük çizilir. Uygulama bunu kendiliğinden bilemez — bu yüzden
+   kullanıcı bilinen uzunlukta bir şeyi (banka kartı, A4 kenarı) gösteriyor.
+   Saklanan değer: bir EKRAN pikselinin kâğıtta kaç milimetreye denk geldiği.
+   Kamerasız kareleme modunda ölçü doğrudan ekranın kendisi için geçerli,
+   o yüzden iki mod AYRI saklanıyor. */
+let olcuNokta={a:null,b:null}, olcuSuruklenen=null;
+function mmPx(){ return D.olcu[D.mod]||null; }
+function cmYaz(mm){ return (mm/10).toFixed(1).replace('.',','); }
+function boyutCipTazele(){
+  const c=$('#boyutCip'), k=mmPx();
+  if(!k){ c.textContent='📏 Boyutu ölç'; c.classList.add('olcusuz'); return; }
+  c.classList.remove('olcusuz');
+  c.textContent=`📏 ${cmYaz(D.W*D.t.s*k)} × ${cmYaz(D.H*D.t.s*k)} cm`;
+}
+function olcuAc(){
+  panelAc('olcuP');
+  const k=mmPx();
+  $('#olcuAnlat').innerHTML = D.mod==='kamera'
+    ? 'Kâğıdın üstüne <b>bildiğin bir şey</b> koy: banka kartı en pratiği. Altın çubuğun iki ucunu onun iki ucuna getir, sonra aşağıdan hangisi olduğunu seç.<br><br>⚠️ Telefonun yüksekliğini değiştirirsen ölçü bozulur, yeniden ölç.'
+    : 'Banka kartını <b>ekranın üstüne</b> koy, altın çubuğun iki ucunu kartın iki ucuna getir, sonra aşağıdan hangisi olduğunu seç.';
+  $('#olcuSonuc').classList.toggle('gizli',!k);
+  $('#olcuOzelKutu').classList.add('gizli');
+  if(k){ $('#olcuBoyut').textContent=`${cmYaz(D.W*D.t.s*k)} × ${cmYaz(D.H*D.t.s*k)} cm`; $('#hedefEn').value=(D.W*D.t.s*k/10).toFixed(1); }
+  // Çubuk ekranın ortasında, panelin üstünde açılıyor
+  const g=innerWidth, y=Math.max(90,innerHeight*0.33);
+  if(!olcuNokta.a) olcuNokta={a:{x:g*0.25,y},b:{x:g*0.75,y}};
+  $('#olcuKat').classList.remove('gizli'); olcuCiz();
+}
+function olcuKapat(){ $('#olcuKat').classList.add('gizli'); panelKapat('olcuP'); }
+function olcuCiz(){
+  const {a,b}=olcuNokta; if(!a) return;
+  $('#olcuA').style.left=a.x+'px'; $('#olcuA').style.top=a.y+'px';
+  $('#olcuB').style.left=b.x+'px'; $('#olcuB').style.top=b.y+'px';
+  const l=$('#olcuCizgi'); l.setAttribute('x1',a.x); l.setAttribute('y1',a.y); l.setAttribute('x2',b.x); l.setAttribute('y2',b.y);
+}
+['olcuA','olcuB'].forEach(id=>{
+  const d=document.getElementById(id);
+  d.addEventListener('pointerdown',e=>{ e.preventDefault(); olcuSuruklenen=id==='olcuA'?'a':'b'; try{d.setPointerCapture(e.pointerId);}catch(_){} });
+  d.addEventListener('pointermove',e=>{ if(!olcuSuruklenen) return;
+    olcuNokta[olcuSuruklenen]={x:e.clientX,y:e.clientY}; olcuCiz(); });
+  ['pointerup','pointercancel'].forEach(o=>d.addEventListener(o,()=>{olcuSuruklenen=null;}));
+});
+function olcuUygula(mm){
+  const {a,b}=olcuNokta, px=Math.hypot(b.x-a.x,b.y-a.y);
+  if(px<30){ serit('Çubuğun uçları birbirine çok yakın — uçları ölçtüğün şeyin iki ucuna getir.','uyari'); return; }
+  D.olcu[D.mod]=mm/px;
+  boyutCipTazele(); kaydetBirazSonra();
+  $('#olcuSonuc').classList.remove('gizli');
+  $('#olcuBoyut').textContent=`${cmYaz(D.W*D.t.s*D.olcu[D.mod])} × ${cmYaz(D.H*D.t.s*D.olcu[D.mod])} cm`;
+  $('#hedefEn').value=(D.W*D.t.s*D.olcu[D.mod]/10).toFixed(1);
+  $('#olcuKat').classList.add('gizli');
+  serit('Ölçü alındı. Artık görselin kâğıttaki boyunu görebilir, istediğin boyu yazabilirsin.');
+}
+document.querySelectorAll('[data-olcu]').forEach(b=>b.onclick=()=>olcuUygula(+b.dataset.olcu));
+$('#olcuOzelD').onclick=()=>$('#olcuOzelKutu').classList.toggle('gizli');
+$('#olcuOzelTamam').onclick=()=>{ const v=parseFloat(($('#olcuOzel').value||'').replace(',','.'));
+  if(!(v>0)){ serit('Önce uzunluğu santim olarak yaz.','uyari'); return; } olcuUygula(v*10); };
+$('#hedefUygula').onclick=()=>{
+  const k=mmPx(); if(!k) return;
+  const v=parseFloat(($('#hedefEn').value||'').replace(',','.'));
+  if(!(v>0)){ serit('Bir genişlik yaz (santim).','uyari'); return; }
+  D.t.s=(v*10)/(D.W*k);
+  ortala(); boyutCipTazele();
+  $('#olcuBoyut').textContent=`${cmYaz(D.W*D.t.s*k)} × ${cmYaz(D.H*D.t.s*k)} cm`;
+};
+$('#olcuSilD').onclick=()=>{ D.olcu[D.mod]=null; boyutCipTazele(); $('#olcuSonuc').classList.add('gizli');
+  $('#olcuKat').classList.remove('gizli'); olcuCiz(); kaydetBirazSonra(); serit('Ölçü unutuldu. İstersen yeniden ölç.'); };
+$('#boyutCip').onclick=olcuAc;
+$('#bittiSeritD').onclick=bittiDegistir;
 function parcaSec(i){
   const n=parcaSayisi(); D.parca.secili=((i%n)+n)%n;
   // Ölçek ve dönüş AYNI kalıyor (kâğıttaki boyut değişmesin), yalnızca ortaya geliyor
@@ -542,8 +680,10 @@ function parcaSec(i){
 }
 function panelAc(id){ document.querySelector(`[data-panel="${id}"]`).classList.remove('gizli'); $('#'+id).classList.remove('gizli'); if(id==='parcaP') parcaHaritasi(); }
 function panelKapat(id){ document.querySelector(`[data-panel="${id}"]`).classList.add('gizli'); $('#'+id).classList.add('gizli'); }
-document.querySelectorAll('[data-kapat]').forEach(b=>b.onclick=()=>panelKapat(b.dataset.kapat));
-document.querySelectorAll('.perde').forEach(p=>p.onclick=()=>panelKapat(p.dataset.panel));
+// Ölçü paneli kapanırken ölçü çubuğu da kalkmalı — yoksa ekranda asılı kalır.
+const panelKapatTam=id=>{ if(id==='olcuP'){ $('#olcuKat').classList.add('gizli'); } panelKapat(id); };
+document.querySelectorAll('[data-kapat]').forEach(b=>b.onclick=()=>panelKapatTam(b.dataset.kapat));
+document.querySelectorAll('.perde').forEach(p=>p.onclick=()=>panelKapatTam(p.dataset.panel));
 
 function parcaHaritasi(){
   if(!D.url) return;
@@ -563,7 +703,7 @@ function parcaHaritasi(){
   const bd=$('#bittiD'); bd.classList.toggle('gizli',!D.parca.acik);
   bd.textContent=bitti?'↩ Bitti işaretini kaldır':'✓ Bu parça bitti'; bd.classList.toggle('tamam',bitti);
 }
-function sigdirSonraSec(i){ D.parca.secili=i; ciz(); sigdir(); aracTazele(); kaydetBirazSonra(); }
+function sigdirSonraSec(i){ D.parca.secili=i; parcaGorunumTazele(); }
 
 $('#opak').addEventListener('input',e=>{ D.opak=+e.target.value; const r=$('#katman image'); if(r) r.setAttribute('opacity',D.opak); kaydetBirazSonra(); });
 $('#kilitD').onclick=()=>kilitle(true);
@@ -576,9 +716,14 @@ $('#geriD').onclick=basaDon;
 $('#izgaraAnahtar').onclick=()=>{ D.izgara.acik=!D.izgara.acik; ciz(); aracTazele(); kaydetBirazSonra(); };
 document.querySelectorAll('[data-izgara]').forEach(b=>b.onclick=()=>{
   D.izgara.sutun=Math.max(2,Math.min(40,D.izgara.sutun+(+b.dataset.izgara))); D.izgara.acik=true; ciz(); aracTazele(); kaydetBirazSonra(); });
+/* Parça moduna girip çıkarken ekrana sığdırmak ÖLÇEĞİ değiştirir. Gerçek boyut
+   ölçülmüşse bu istenmez: kullanıcı "8 cm olsun" demişse parçalara bölmek onu
+   30 cm yapmamalı (2026-09-19'da denemede görüldü). Ölçü varsa boyut korunuyor,
+   yoksa eskisi gibi ekrana sığdırılıyor. */
+function parcaGorunumTazele(){ ciz(); if(mmPx()) ortala(); else sigdir(); aracTazele(); kaydetBirazSonra(); }
 $('#parcaAnahtar').onclick=()=>{
   D.parca.acik=!D.parca.acik; D.parca.secili=Math.min(D.parca.secili,parcaSayisi()-1);
-  ciz(); sigdir(); aracTazele(); kaydetBirazSonra(); };
+  parcaGorunumTazele(); };
 document.querySelectorAll('[data-parca]').forEach(b=>b.onclick=()=>{
   const [alan,fark]=b.dataset.parca.split(','); const eski=D.parca[alan];
   D.parca[alan]=Math.max(1,Math.min(6,eski+(+fark)));
@@ -586,16 +731,8 @@ document.querySelectorAll('[data-parca]').forEach(b=>b.onclick=()=>{
   // Bölme değişince eski "bitti" işaretleri başka parçalara denk gelir — sıfırlanıyor
   if(D.parca.biten.length) serit('Parça sayısı değişti; "bitti" işaretleri sıfırlandı.');
   D.parca.biten=[]; D.parca.secili=0; D.parca.acik=true;
-  ciz(); sigdir(); aracTazele(); kaydetBirazSonra(); });
-$('#bittiD').onclick=()=>{
-  const i=D.parca.secili, b=D.parca.biten;
-  if(b.includes(i)) D.parca.biten=b.filter(x=>x!==i);
-  else{
-    D.parca.biten=[...b,i];
-    if(D.parca.biten.length===parcaSayisi()) serit('🎉 Bütün parçalar bitti! Geminio!');
-  }
-  aracTazele(); kaydetBirazSonra();
-};
+  parcaGorunumTazele(); });
+$('#bittiD').onclick=bittiDegistir;
 $('#ipucuTamam').onclick=()=>{ $('#ipucu').classList.add('gizli'); try{ localStorage.setItem('geminio-ipucu','1'); }catch(e){} };
 addEventListener('resize',()=>{ if(calismaAcik) yerlestir(); });
 
@@ -629,6 +766,7 @@ async function devamKutusunuGoster(){
     try{
       await gorselYukle(k.blob);
       D.opak=k.opak??0.5; D.izgara=k.izgara||D.izgara; D.parca=Object.assign({acik:false,sutun:2,satir:3,secili:0,biten:[]},k.parca||{});
+      D.olcu=Object.assign({kamera:null,kare:null},k.olcu||{});
       calismayaGec(k.mod||'kamera',{s:k.s,r:k.r});
     }catch(e){ serit('Kayıtlı görsel açılamadı.','uyari'); }
   };
