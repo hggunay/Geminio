@@ -62,7 +62,7 @@ h1{margin:0;font-family:Georgia,"Times New Roman",serif;font-size:2.2rem;letter-
 .not{color:var(--soluk);font-size:.8rem;text-align:center;max-width:340px}
 
 /* ── ÇALIŞMA EKRANI ────────────────────────────────────────────────── */
-#calisma{position:fixed;inset:0;background:#000}
+#calisma{position:fixed;inset:0;background:#000;-webkit-touch-callout:none}
 #calisma.kare{background:var(--kagit)}
 #video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 /* Hareket alanı: tüm ekran. touch-action:none — tarayıcı kendi yakınlaştırmasını yapmasın. */
@@ -94,18 +94,33 @@ input[type=range]{flex:1;accent-color:var(--altin);height:28px}
   background:var(--gece2);font-size:.85rem;color:var(--yazi)}
 #boyutCip.olcusuz{color:var(--soluk)}
 
-/* Ölçü çubuğu */
-#olcuKat{position:absolute;inset:0;z-index:7;touch-action:none}
-#olcuKat svg{position:absolute;inset:0;width:100%;height:100%}
-.olcuTut{position:absolute;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;
-  background:rgba(232,196,106,.22);border:2px solid var(--altin);display:grid;place-items:center;touch-action:none}
-.olcuTut::after{content:"";width:12px;height:12px;border-radius:50%;background:var(--altin)}
+/* Ölçü çubuğu — ⚠️ z-index panellerin DE ÜSTÜNDE (2026-09-19). Önce 7 idi ve
+   panelin karartma perdesi (8) çubuğu hem örtüyor hem dokunuşları yutuyordu;
+   Gökşin tablette "ekranda herhangi bir altın çubuk göremiyorum" dedi. */
+#olcuKat{position:absolute;inset:0;z-index:12;touch-action:none}
+#olcuKat svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.olcuTut{position:absolute;width:72px;height:72px;margin:-36px 0 0 -36px;border-radius:50%;
+  background:rgba(232,196,106,.25);border:3px solid var(--altin);display:grid;place-items:center;touch-action:none;
+  -webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.olcuTut::after{content:"";width:14px;height:14px;border-radius:50%;background:var(--altin)}
+#olcuYonerge{position:absolute;left:12px;right:12px;top:calc(12px + env(safe-area-inset-top));
+  background:var(--panel);border:1px solid var(--altin);border-radius:12px;padding:.7rem .9rem;
+  font-size:.92rem;line-height:1.4;text-align:center}
+#olcuDugmeler{position:absolute;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom));
+  display:flex;gap:10px}
+#olcuDugmeler button{flex:1;padding:.9rem;border-radius:14px;border:1px solid rgba(232,196,106,.4);
+  background:var(--panel);font-size:1rem}
+#olcuDugmeler .ana{background:linear-gradient(135deg,var(--altin),var(--altin-koyu));color:#221a0c;border:none;font-weight:700}
 
 /* Kilit: araç çubuğu gizlenir, tek bir düğme kalır. Kâğıda çizen el ekrana
    değebilir — o yüzden kilit AÇMAK için basılı tutmak gerekiyor. */
+/* ⚠️ -webkit-touch-callout ve user-select ŞART (2026-09-19): tablette Chrome,
+   basılı tutunca "kopyala / yapıştır" menüsünü açıyor ve kilit açılamıyordu
+   (Gökşin bildirdi). Ayrıca contextmenu olayı da engelleniyor (aşağıda). */
 #kilitAc{position:absolute;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:6;
   width:64px;height:64px;border-radius:50%;border:2px solid var(--altin);background:var(--panel);
-  font-size:1.5rem;display:grid;place-items:center;touch-action:none}
+  font-size:1.5rem;display:grid;place-items:center;touch-action:none;
+  -webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 #kilitAc::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:3px solid var(--altin);
   clip-path:inset(0 100% 0 0);opacity:0}
 #kilitAc.basili::after{opacity:1;animation:dolum .8s linear forwards}
@@ -231,6 +246,11 @@ input[type=range]{flex:1;accent-color:var(--altin);height:28px}
   <div id="olcuKat" class="gizli">
     <svg><line id="olcuCizgi" stroke="#e8c46a" stroke-width="3" stroke-dasharray="9 6"/></svg>
     <div class="olcuTut" id="olcuA"></div><div class="olcuTut" id="olcuB"></div>
+    <div id="olcuYonerge"></div>
+    <div id="olcuDugmeler">
+      <button id="olcuVazgec">✕ Vazgeç</button>
+      <button class="ana" id="olcuAl">✓ Ölçüyü al</button>
+    </div>
   </div>
   <div class="perde gizli" data-panel="olcuP"></div>
   <div class="panel gizli" id="olcuP">
@@ -249,6 +269,12 @@ input[type=range]{flex:1;accent-color:var(--altin);height:28px}
 
     <div id="olcuSonuc" class="gizli">
       <div class="acma"><span>Çizimin boyu</span><b id="olcuBoyut"></b></div>
+      <div style="margin:.6rem 0 .2rem;color:var(--soluk);font-size:.82rem">Kâğıda sığdır (kenarda 1 cm boşluk kalır):</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        <button class="genis" style="margin:0" data-kagit="148,210">A5</button>
+        <button class="genis" style="margin:0" data-kagit="210,297">A4</button>
+        <button class="genis" style="margin:0" data-kagit="297,420">A3</button>
+      </div>
       <div class="acma"><span>Genişliğini şu yap (cm)</span>
         <div class="adim">
           <input type="number" id="hedefEn" min="0.5" max="500" step="0.1" inputmode="decimal"
@@ -571,6 +597,8 @@ function kilitle(ac){
 }
 (function(){
   const d=$('#kilitAc'); let z=null;
+  // Tarayıcının basılı-tutma menüsü çıkmasın; çıkarsa kilit hiç açılamıyor.
+  d.addEventListener('contextmenu',e=>e.preventDefault());
   const bitir=()=>{ clearTimeout(z); z=null; d.classList.remove('basili'); };
   d.addEventListener('pointerdown',e=>{ e.preventDefault(); d.classList.add('basili');
     z=setTimeout(()=>{ bitir(); kilitle(false); },800); });
@@ -622,18 +650,38 @@ function boyutCipTazele(){
   c.classList.remove('olcusuz');
   c.textContent=`📏 ${cmYaz(D.W*D.t.s*k)} × ${cmYaz(D.H*D.t.s*k)} cm`;
 }
+/* ÖLÇÜM AKIŞI (2026-09-19'da Gökşin'in tablet denemesinden sonra değişti).
+   ÖNCEDEN: panel açık kalıyor, kullanıcı "banka kartı"na basar basmaz ölçü
+   ALINIYORDU — çubuğu yerleştirmeye fırsat yoktu ("çok hızlı ölçü alıyor,
+   kartı görüp görmediğinden bile emin olamadım"). Üstelik panelin karartma
+   perdesi çubuğun üstünde kalıyordu, çubuk ne görülüyor ne tutulabiliyordu.
+   ŞİMDİ: (1) neyi ölçeceğini seç → (2) menü KAPANIR, ekranda yalnız çubuk ve
+   iki düğme kalır → (3) çubuğu yerleştir → (4) "✓ Ölçüyü al". */
+let olcuHedefMm=null;
 function olcuAc(){
   panelAc('olcuP');
   const k=mmPx();
   $('#olcuAnlat').innerHTML = D.mod==='kamera'
-    ? 'Kâğıdın üstüne <b>bildiğin bir şey</b> koy: banka kartı en pratiği. Altın çubuğun iki ucunu onun iki ucuna getir, sonra aşağıdan hangisi olduğunu seç.<br><br>⚠️ Telefonun yüksekliğini değiştirirsen ölçü bozulur, yeniden ölç.'
-    : 'Banka kartını <b>ekranın üstüne</b> koy, altın çubuğun iki ucunu kartın iki ucuna getir, sonra aşağıdan hangisi olduğunu seç.';
+    ? 'Neyi ölçü olarak kullanacaksın? Kâğıdın üstüne koyacağın <b>banka kartı</b> en pratiği. Seçince menü kapanacak ve ekranda altın bir çubuk kalacak.<br><br>⚠️ Telefonun/tabletin yüksekliğini değiştirirsen ölçü bozulur, yeniden ölç.'
+    : 'Neyi ölçü olarak kullanacaksın? Banka kartını <b>ekranın üstüne</b> koyacaksın. Seçince menü kapanacak ve ekranda altın bir çubuk kalacak.';
   $('#olcuSonuc').classList.toggle('gizli',!k);
   $('#olcuOzelKutu').classList.add('gizli');
-  if(k){ $('#olcuBoyut').textContent=`${cmYaz(D.W*D.t.s*k)} × ${cmYaz(D.H*D.t.s*k)} cm`; $('#hedefEn').value=(D.W*D.t.s*k/10).toFixed(1); }
-  // Çubuk ekranın ortasında, panelin üstünde açılıyor
-  const g=innerWidth, y=Math.max(90,innerHeight*0.33);
-  if(!olcuNokta.a) olcuNokta={a:{x:g*0.25,y},b:{x:g*0.75,y}};
+  if(k) olcuSonucTazele();
+}
+function olcuSonucTazele(){
+  const k=mmPx(); if(!k) return;
+  $('#olcuBoyut').textContent=`${cmYaz(D.W*D.t.s*k)} × ${cmYaz(D.H*D.t.s*k)} cm`;
+  $('#hedefEn').value=(D.W*D.t.s*k/10).toFixed(1);
+}
+function olcumeBasla(mm, ad){
+  olcuHedefMm=mm;
+  panelKapat('olcuP');            // menü kalksın, ekran görünsün
+  $('#olcuYonerge').innerHTML = (D.mod==='kamera'
+    ? ad+' kâğıdın üstünde dursun. '
+    : ad+' ekranın üstünde dursun. ')+
+    'Altın halkaları <b>tek tek sürükleyip</b> onun iki ucuna getir, sonra “✓ Ölçüyü al”a dokun.';
+  const y=Math.max(150,innerHeight*0.45);
+  olcuNokta={a:{x:innerWidth*0.22,y},b:{x:innerWidth*0.72,y}};
   $('#olcuKat').classList.remove('gizli'); olcuCiz();
 }
 function olcuKapat(){ $('#olcuKat').classList.add('gizli'); panelKapat('olcuP'); }
@@ -650,31 +698,43 @@ function olcuCiz(){
     olcuNokta[olcuSuruklenen]={x:e.clientX,y:e.clientY}; olcuCiz(); });
   ['pointerup','pointercancel'].forEach(o=>d.addEventListener(o,()=>{olcuSuruklenen=null;}));
 });
-function olcuUygula(mm){
+function olcuUygula(){
   const {a,b}=olcuNokta, px=Math.hypot(b.x-a.x,b.y-a.y);
-  if(px<30){ serit('Çubuğun uçları birbirine çok yakın — uçları ölçtüğün şeyin iki ucuna getir.','uyari'); return; }
-  D.olcu[D.mod]=mm/px;
+  if(px<40){ serit('Çubuğun uçları birbirine çok yakın. Halkaları ölçtüğün şeyin iki ucuna getir.','uyari',5000); return; }
+  D.olcu[D.mod]=olcuHedefMm/px;
   boyutCipTazele(); kaydetBirazSonra();
-  $('#olcuSonuc').classList.remove('gizli');
-  $('#olcuBoyut').textContent=`${cmYaz(D.W*D.t.s*D.olcu[D.mod])} × ${cmYaz(D.H*D.t.s*D.olcu[D.mod])} cm`;
-  $('#hedefEn').value=(D.W*D.t.s*D.olcu[D.mod]/10).toFixed(1);
   $('#olcuKat').classList.add('gizli');
-  serit('Ölçü alındı. Artık görselin kâğıttaki boyunu görebilir, istediğin boyu yazabilirsin.');
+  serit('✓ Ölçü alındı — çizimin boyu '+cmYaz(D.W*D.t.s*mmPx())+' × '+cmYaz(D.H*D.t.s*mmPx())+' cm',null,5000);
+  // Menü yeniden açılıyor ki boyu görsün ve istersen kâğıda sığdırsın
+  panelAc('olcuP'); $('#olcuSonuc').classList.remove('gizli'); olcuSonucTazele();
 }
-document.querySelectorAll('[data-olcu]').forEach(b=>b.onclick=()=>olcuUygula(+b.dataset.olcu));
+document.querySelectorAll('[data-olcu]').forEach(b=>b.onclick=()=>
+  olcumeBasla(+b.dataset.olcu, b.textContent.includes('Banka')?'💳 Banka kartı':'📄 A4 kâğıdı'));
+$('#olcuAl').onclick=olcuUygula;
+$('#olcuVazgec').onclick=()=>{ $('#olcuKat').classList.add('gizli'); olcuAc(); };
 $('#olcuOzelD').onclick=()=>$('#olcuOzelKutu').classList.toggle('gizli');
 $('#olcuOzelTamam').onclick=()=>{ const v=parseFloat(($('#olcuOzel').value||'').replace(',','.'));
-  if(!(v>0)){ serit('Önce uzunluğu santim olarak yaz.','uyari'); return; } olcuUygula(v*10); };
+  if(!(v>0)){ serit('Önce uzunluğu santim olarak yaz.','uyari'); return; } olcumeBasla(v*10, v.toString().replace('.',',')+' cm uzunluğundaki şey'); };
+/* Kâğıda sığdır — kenarlarda 10 mm boşluk bırakıyor ve kâğıdı hangi yöne
+   çevirmek daha büyük bir çizim veriyorsa onu seçiyor. */
+document.querySelectorAll('[data-kagit]').forEach(b=>b.onclick=()=>{
+  const k=mmPx(); if(!k){ serit('Önce ölçü al.','uyari'); return; }
+  const [kisa,uzun]=b.dataset.kagit.split(',').map(Number), pay=10;
+  const sigdir=(en,boy)=>Math.min((en-2*pay)/D.W,(boy-2*pay)/D.H);
+  const mmPerPx=Math.max(sigdir(kisa,uzun), sigdir(uzun,kisa));   // dikey / yatay
+  D.t.s=mmPerPx/k;
+  ortala(); boyutCipTazele(); olcuSonucTazele();
+  serit(b.textContent.trim()+' boyuna getirildi: '+cmYaz(D.W*D.t.s*k)+' × '+cmYaz(D.H*D.t.s*k)+' cm');
+});
 $('#hedefUygula').onclick=()=>{
   const k=mmPx(); if(!k) return;
   const v=parseFloat(($('#hedefEn').value||'').replace(',','.'));
   if(!(v>0)){ serit('Bir genişlik yaz (santim).','uyari'); return; }
   D.t.s=(v*10)/(D.W*k);
-  ortala(); boyutCipTazele();
-  $('#olcuBoyut').textContent=`${cmYaz(D.W*D.t.s*k)} × ${cmYaz(D.H*D.t.s*k)} cm`;
+  ortala(); boyutCipTazele(); olcuSonucTazele();
 };
 $('#olcuSilD').onclick=()=>{ D.olcu[D.mod]=null; boyutCipTazele(); $('#olcuSonuc').classList.add('gizli');
-  $('#olcuKat').classList.remove('gizli'); olcuCiz(); kaydetBirazSonra(); serit('Ölçü unutuldu. İstersen yeniden ölç.'); };
+  kaydetBirazSonra(); serit('Ölçü unutuldu. Yukarıdan neyi ölçeceğini seçip yeniden ölçebilirsin.'); };
 $('#boyutCip').onclick=olcuAc;
 $('#bittiSeritD').onclick=bittiDegistir;
 function parcaSec(i){
